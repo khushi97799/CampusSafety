@@ -8,20 +8,11 @@ One backend, three sections, matching what you asked for:
 
 ## Run it locally
 
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-export ANTHROPIC_API_KEY=sk-ant-...   # Windows: set ANTHROPIC_API_KEY=sk-ant-...
-
+$env:GROQ_API_KEY="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"  
 uvicorn main:app --reload --port 8000
-```
 
 Open **http://localhost:8000** — FastAPI serves the frontend directly, no separate server needed.
-
-**About the API key:** photo classification calls the Anthropic API directly from the backend, using whatever key is in `ANTHROPIC_API_KEY`. Get one from https://console.anthropic.com — it needs billing set up, and each photo upload is a small paid API call (a single-image classification like this is inexpensive, but it isn't free). If the key isn't set, uploads will fail with a clear error message rather than silently doing nothing.
 
 ## How the ML actually works here
 
