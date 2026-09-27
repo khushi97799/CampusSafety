@@ -9,7 +9,7 @@ One backend, three sections, matching what you asked for:
 ## Run it locally
 
 pip install -r requirements.txt
-$env:GROQ_API_KEY="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"  
+$env:GROQ_API_KEY="your_api_key"  
 uvicorn main:app --reload --port 8000
 
 Open **http://localhost:8000** — FastAPI serves the frontend directly, no separate server needed.
