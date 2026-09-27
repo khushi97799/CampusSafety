@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Campus Night Safety Dashboard</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+:root{--bg:#0e131f;--panel:#161d2c;--panel2:#1c2438;--border:#2a3350;--text:#e7ebf5;--muted:#93a0bf;--accent:#3b6df0;--accent2:#9b6df0;--red:#e2495a;--orange:#e3a53b;--green:#3fbf72;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+header{padding:16px 20px 0;border-bottom:1px solid var(--border);background:var(--panel);}
+header h1{margin:0 0 2px;font-size:1.3rem}
+header p{margin:0 0 14px;color:var(--muted);font-size:.85rem}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button{background:transparent;border:none;color:var(--muted);padding:10px 14px;font-size:.85rem;cursor:pointer;border-bottom:2px solid transparent}
+nav button.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+main{max-width:1150px;margin:0 auto;padding:18px 16px 60px}
+.tab{display:none} .tab.active{display:block}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.stat b{display:block;font-size:1.5rem} .stat span{color:var(--muted);font-size:.78rem}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px}
+.card h2{margin:0 0 10px;font-size:1rem}
+.card h3{margin:16px 0 8px;font-size:.88rem;color:var(--muted)}
+label{display:block;font-size:.78rem;color:var(--muted);margin:10px 0 4px}
+input,select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:7px;font-size:.85rem}
+.row{display:flex;gap:14px;flex-wrap:wrap} .row>*{flex:1;min-width:180px}
+.checkrow{display:flex;align-items:center;gap:8px;margin-top:10px}
+.checkrow input{width:auto}
+button.btn{background:var(--accent);color:#fff;border:none;padding:10px 16px;border-radius:7px;font-size:.85rem;cursor:pointer;margin-top:10px}
+button.btn.secondary{background:var(--panel2);border:1px solid var(--border)}
+#map{height:360px;border-radius:10px;border:1px solid var(--border);margin-bottom:14px;position:relative}
+.map-hint{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(14,19,31,.88);padding:6px 12px;border-radius:20px;font-size:.72rem;z-index:1000;pointer-events:none;border:1px solid var(--border)}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.filters select{width:auto;min-width:150px}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.dot.r{background:var(--red)} .dot.o{background:var(--orange)} .dot.g{background:var(--green)}
+.badge{font-size:.7rem;padding:2px 7px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+.badge.best{color:var(--green);border-color:var(--green)}
+.badge.mode{color:var(--accent);border-color:var(--accent)}
+.badge.net{color:var(--accent2);border-color:var(--accent2)}
+.route-group{margin-bottom:10px}
+.route-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:10px 12px;background:var(--panel2);border-radius:8px;border:1px solid var(--border)}
+.route-body{display:none;padding:8px 4px 0} .route-body.open{display:block}
+.muted{color:var(--muted);font-size:.8rem}
+.tablewrap{overflow-x:auto}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:.78rem;margin:3px;cursor:pointer}
+.chip.on{border-color:var(--accent);color:var(--accent)}
+.bar-row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:.8rem}
+.bar-track{flex:1;background:var(--panel2);border-radius:6px;height:14px;overflow:hidden}
+.bar-fill{height:100%;background:var(--accent)}
+.bar-fill.net{background:var(--accent2)}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);padding:10px 16px;border-radius:8px;font-size:.82rem;display:none;z-index:2000}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌙 Campus Night Safety Dashboard</h1>
+  <p>Photo-derived risk models + anonymous form data, retrained on every new entry</p>
+  <nav>
+    <button class="active" data-tab="upload">Upload &amp; Classify</button>
+    <button data-tab="dashboard">Dashboard</button>
+    <button data-tab="compare">Compare with Form</button>
+  </nav>
+</header>
+<main>
+
+<section id="tab-upload" class="tab active">
+  <div class="card">
+    <h2>Upload a photo <span id="vision-mode-badge"></span></h2>
+    <p class="muted" id="vision-mode-note">Lighting, isolation, vegetation and foot traffic are all read from the photo automatically by the backend vision model — there's no manual override for these. Wi-Fi, signal, location and route are set here since a photo can't show those.</p>
+    <label>Photo</label>
+    <input type="file" id="in-photo" accept="image/*" onchange="previewPhoto(event)">
+    <img id="photo-preview" style="max-width:100%;border-radius:8px;margin-top:10px;display:none;border:1px solid var(--border)">
+    <div class="row">
+      <div><label>Route</label><select id="in-route"></select><div id="new-route-wrap" style="display:none;margin-top:8px">
+      <label>New route name</label>
+      <input id="in-new-route" placeholder="e.g. Path behind Core 6">
+      </div></div>
+      <div><label>Segment / landmark (optional — auto-filled when possible)</label><input id="in-segment" placeholder="e.g. tree island near crosswalk"></div>
+    </div>
+    <div class="row">
+      <div><label>Latitude</label><input id="in-lat" value="26.1862"></div>
+      <div><label>Longitude</label><input id="in-lon" value="91.6959"></div>
+    </div>
+    <div class="row">
+      <div><label>Signal strength (sensor reading)</label><select id="in-signal"><option>strong</option><option selected>moderate</option><option>weak</option></select></div>
+      <div class="checkrow" style="margin-top:26px"><input type="checkbox" id="in-wifi"><label style="margin:0" for="in-wifi">Wi-Fi available at this spot</label></div>
+    </div>
+    <button class="btn" id="submit-btn" onclick="submitPoint()">Analyze &amp; Add Point</button>
+    <p id="upload-msg" class="muted"></p>
+    <div id="classification-result"></div>
+    <div id="upload-shap"></div>
+  </div>
+</section>
+
+<section id="tab-dashboard" class="tab">
+  <div class="stats" id="stats"></div>
+  <div id="map"></div>
+  <div class="filters">
+    <select id="f-route"><option value="">All routes</option></select>
+    <select id="f-level"><option value="">All risk levels</option><option value="high">High (7–10)</option><option value="medium">Medium (4–6.9)</option><option value="low">Low (0–3.9)</option></select>
+  </div>
+  <div class="card"><h2>By route</h2><div id="route-groups"></div></div>
+  <div class="card"><h2>Ranked priority list</h2>
+    <div class="tablewrap"><table><thead><tr><th>#</th><th>Location</th><th>Route</th><th>Rule score</th><th>ML score</th><th>Network risk</th><th>Status</th><th></th></tr></thead>
+    <tbody id="ranked-body"></tbody></table></div>
+  </div>
+</section>
+
+<section id="tab-compare" class="tab">
+  <div class="card">
+    <h2>Add a form response</h2>
+    <h3 style="margin-top:20px">Or bulk-import from Excel</h3>
+    <p class="muted">File needs a <code>location_text</code> (or <code>location</code>) column, and optionally a <code>tags</code> column with comma-separated tags matching: Isolated area, Lighting issue, Animals, Network issues.</p>
+    <input type="file" id="form-bulk-file" accept=".xlsx,.xls">
+    <button class="btn secondary" onclick="submitFormBulk()">Upload & Import</button>
+    <p id="form-bulk-msg" class="muted"></p>
+    <label>Location text (as typed in the form)</label>
+    <input id="form-loc" placeholder="e.g. Disang hostel to kv gate">
+    <label>Tags</label>
+    <div id="form-tags">
+      <span class="chip" data-tag="Isolated area">Isolated area</span>
+      <span class="chip" data-tag="Lighting issue">Lighting issue</span>
+      <span class="chip" data-tag="Animals">Animals</span>
+      <span class="chip" data-tag="Network issues">Network issues</span>
+    </div>
+    <button class="btn" onclick="submitForm()">Add response</button>
+    <p id="form-msg" class="muted"></p>
+  </div>
+
+  <div class="card">
+    <h2>Overall risk — model comparison</h2>
+    <p class="muted">All 3 predict the form-reported risk from photo scene features + network readings. Best = lowest error on held-out data (once there's enough data for that).</p>
+    <div class="tablewrap"><table><thead><tr><th>Model</th><th>MAE</th><th>R²</th><th>Samples used</th><th></th></tr></thead>
+    <tbody id="models-body"></tbody></table></div>
+
+    <h3>Why the model predicts what it predicts (SHAP)</h3>
+    <p class="muted">Average impact of each feature on the predicted overall risk score, across all training points.</p>
+    <div id="shap-bars"></div>
+  </div>
+
+  <div class="card">
+    <h2>Network risk — model comparison <span class="badge net">connectivity target</span></h2>
+    <p class="muted">A separate model that predicts connectivity risk (derived from each point's own Wi-Fi/signal reading) from scene features alone — lighting, isolation, vegetation, foot traffic — to see whether the physical character of a spot correlates with dead zones.</p>
+    <div class="tablewrap"><table><thead><tr><th>Model</th><th>MAE</th><th>R²</th><th>Samples used</th><th></th></tr></thead>
+    <tbody id="network-models-body"></tbody></table></div>
+
+    <h3>Which scene features drive network risk (SHAP)</h3>
+    <div id="network-shap-bars"></div>
+  </div>
+
+  <div class="card">
+    <h2>Risk by route</h2>
+    <div class="tablewrap"><table><thead><tr><th>Route</th><th>Rule-based avg</th><th>ML predicted avg</th><th>Form-derived</th><th>Network risk avg</th><th>Network risk (ML)</th></tr></thead>
+    <tbody id="compare-body"></tbody></table></div>
+  </div>
+</section>
+
+</main>
+<div id="toast"></div>
+
+<script>
+const API = "/api";
+const DEFAULT_ROUTES = ["Disang Main Road","Dhansiri Main Road","Hospital Road","Unnamed route","Backside of Lecture Hall 2"];
+let ROUTES = [];
+let map, markers = [];
+let filters = {route:"", level:""};
+
+function toast(msg, ok=true){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.borderColor = ok? 'var(--green)':'var(--red)';
+  t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(()=>t.style.display='none', 3500);
+}
+function riskClass(s){ return s>=7?"r": s>=4?"o":"g"; }
+function riskColor(s){ return s>=7?"#e2495a": s>=4?"#e3a53b":"#3fbf72"; }
+
+async function boot(){
+  attachNav();
+  document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('on')));
+  document.getElementById('f-route').addEventListener('change', e=>{filters.route=e.target.value; refreshDashboard();});
+  document.getElementById('f-level').addEventListener('change', e=>{filters.level=e.target.value; refreshDashboard();});
+
+  try{
+    const health = await fetch(`${API}/health`).then(r=>r.json());
+    ROUTES = health.known_routes || DEFAULT_ROUTES;
+    const badge = document.getElementById('vision-mode-badge');
+    const note = document.getElementById('vision-mode-note');
+    if(health.vision_backend === 'groq'){
+      badge.innerHTML = '<span class="badge mode">Groq vision</span>';
+      note.textContent = 'Lighting, isolation, vegetation, and foot traffic are all read from the photo by Groq\'s vision API — there\'s no manual override for these. Wi-Fi, signal, location and route are set here since a photo can\'t show those.';
+    } else {
+      badge.innerHTML = '<span class="badge">local pixel analysis</span>';
+      note.textContent = 'No Groq API key set — lighting and vegetation are read from pixel stats (brightness / green ratio), free and offline. Isolation defaults to a neutral placeholder in this mode since pixels alone can\'t judge enclosure; set GROQ_API_KEY for a real read.';
+    }
+  }catch(e){
+    ROUTES = DEFAULT_ROUTES;
+    showBackendError();
+  }
+ document.querySelectorAll('#in-route, #f-route').forEach(sel=>{
+    ROUTES.forEach(r=>{ const o=document.createElement('option'); o.value=r; o.textContent=r; sel.appendChild(o); });
+});
+const newRouteOpt = document.createElement('option');
+newRouteOpt.value = "__new__";
+newRouteOpt.textContent = "+ Add new route…";
+document.getElementById('in-route').appendChild(newRouteOpt);
+document.getElementById('in-route').addEventListener('change', e=>{
+    document.getElementById('new-route-wrap').style.display = e.target.value === '__new__' ? 'block' : 'none';
+});
+  refreshCompare().catch(()=>showBackendError());
+}
+
+function attachNav(){
+  document.querySelectorAll('nav button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+      if(btn.dataset.tab==='dashboard'){
+        if(!map) initMap();
+        setTimeout(()=>{ map.invalidateSize(); refreshDashboard().catch(()=>showBackendError()); },50);
+      }
+      if(btn.dataset.tab==='compare') refreshCompare().catch(()=>showBackendError());
+    });
+  });
+}
+
+function showBackendError(){
+  if(document.getElementById('backend-error')) return;
+  const div = document.createElement('div');
+  div.id = 'backend-error';
+  div.style.cssText = 'background:#3a1620;border:1px solid var(--red);color:#ffb4bd;padding:12px 16px;border-radius:8px;margin:0 0 14px;font-size:.85rem';
+  div.innerHTML = `<b>Can't reach the backend API.</b> Make sure <code>uvicorn main:app --reload --port 8000</code> is running, and that you opened this page at <code>http://localhost:8000</code> — not by double-clicking the HTML file directly.`;
+  document.querySelector('header').after(div);
+}
+
+/* ---------------- upload ---------------- */
+function previewPhoto(e){
+  const file = e.target.files[0];
+  const img = document.getElementById('photo-preview');
+  if(!file){ img.style.display='none'; return; }
+  img.src = URL.createObjectURL(file);
+  img.style.display = 'block';
+}
+
+async function submitPoint(){
+  const fileInput = document.getElementById('in-photo');
+  const msg = document.getElementById('upload-msg');
+  const btn = document.getElementById('submit-btn');
+  if(!fileInput.files[0]){ msg.style.color='var(--red)'; msg.textContent='Choose a photo first.'; return; }
+
+  const fd = new FormData();
+  fd.append('photo', fileInput.files[0]);
+  //fd.append('route', document.getElementById('in-route').value);
+  const routeSel = document.getElementById('in-route').value;
+  const routeVal = routeSel === '__new__' ? document.getElementById('in-new-route').value.trim() : routeSel;
+  if(!routeVal){ msg.style.color='var(--red)'; msg.textContent='Enter a name for the new route.'; return; }
+  fd.append('route', routeVal);
+  fd.append('lat', document.getElementById('in-lat').value);
+  fd.append('lon', document.getElementById('in-lon').value);
+  fd.append('wifi_available', document.getElementById('in-wifi').checked);
+  fd.append('signal_strength', document.getElementById('in-signal').value);
+  const seg = document.getElementById('in-segment').value;
+  if(seg) fd.append('segment', seg);
+
+  btn.disabled = true;
+  msg.style.color='var(--muted)'; msg.textContent = 'Analyzing photo…';
+  document.getElementById('classification-result').innerHTML = '';
+  document.getElementById('upload-shap').innerHTML = '';
+
+  try{
+    const res = await fetch(`${API}/points/from-photo`, {method:'POST', body: fd});
+    if(!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    let line = `Added "${data.point.segment}" — rule-based risk ${data.point.rule_risk}.`;
+    if(data.retrain.trained) line += ` ML predicted: ${data.point.ml_risk ?? '–'} (best model: ${data.retrain.best_model}).`;
+    else line += ` ${data.retrain.reason}`;
+    msg.style.color='var(--green)'; msg.textContent = line;
+
+    const c = data.classification;
+    const sourceLabel = {groq:'Groq vision', 'local-fallback':'local pixel analysis (Groq call failed, see note)', 'local-no-key':'local pixel analysis (no Groq key)'}[c._source] || c._source || '–';
+    const isoLabel = {1:'1 — open sightlines', 2:'2 — partial', 3:'3 — enclosed / blind spot'}[Math.round(data.point.isolation_score)] || data.point.isolation_score;
+    let rows = `
+        <tr><th>Analyzed by</th><td>${sourceLabel}</td></tr>
+        <tr><th>Lighting</th><td>${c.lighting_level ?? '–'}</td></tr>
+        <tr><th>Isolation (backend-determined)</th><td>${isoLabel}</td></tr>
+        <tr><th>Vegetation</th><td>${c.vegetation_density ?? '–'}</td></tr>
+        <tr><th>Foot traffic</th><td>${c.foot_traffic_observed ?? '–'}</td></tr>
+        <tr><th>Network risk</th><td>${data.point.network_risk}${data.point.network_risk_ml!=null?` (predicted: ${data.point.network_risk_ml})`:''}</td></tr>`;
+    if(c.nearby_landmark) rows += `<tr><th>Landmark</th><td>${c.nearby_landmark}</td></tr>`;
+    if(c.notable_features) rows += `<tr><th>Notable features</th><td>${c.notable_features}</td></tr>`;
+    if(c.confidence_note) rows += `<tr><th>Note</th><td>${c.confidence_note}</td></tr>`;
+    if(c._groq_error) rows += `<tr><th>Groq error</th><td class="muted">${c._groq_error}</td></tr>`;
+    document.getElementById('classification-result').innerHTML = `
+      <p class="muted" style="margin-top:10px">What was read from the photo:</p>
+      <div class="tablewrap"><table><tbody>${rows}</tbody></table></div>`;
+
+    const shapDiv = document.getElementById('upload-shap');
+    let shapHtml = '';
+    if(data.shap){
+      shapHtml += '<p class="muted" style="margin-top:10px">Overall-risk feature contribution for this point:</p>' +
+        Object.entries(data.shap).map(([k,v])=>`<div class="bar-row"><span style="width:130px">${k}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,Math.abs(v)*20)}%;background:${v>=0?'var(--red)':'var(--green)'}"></div></div><span>${v}</span></div>`).join('');
+    }
+    if(data.network_shap){
+      shapHtml += '<p class="muted" style="margin-top:10px">Network-risk feature contribution for this point:</p>' +
+        Object.entries(data.network_shap).map(([k,v])=>`<div class="bar-row"><span style="width:130px">${k}</span><div class="bar-track"><div class="bar-fill net" style="width:${Math.min(100,Math.abs(v)*20)}%;opacity:${v>=0?1:.5}"></div></div><span>${v}</span></div>`).join('');
+    }
+    shapDiv.innerHTML = shapHtml;
+
+    toast('Point added and models retrained.');
+    if(routeSel === '__new__' && !ROUTES.includes(routeVal)){
+    ROUTES.push(routeVal);
+    const opt = document.createElement('option'); opt.value = routeVal; opt.textContent = routeVal;
+    document.getElementById('in-route').insertBefore(opt, document.getElementById('in-route').lastChild);
+    document.getElementById('f-route').appendChild(opt.cloneNode(true));
+}
+document.getElementById('in-route').value = routeVal;
+document.getElementById('new-route-wrap').style.display = 'none';
+document.getElementById('in-new-route').value = '';
+    fileInput.value = ''; document.getElementById('photo-preview').style.display='none';
+  }catch(e){
+    msg.style.color='var(--red)'; msg.textContent = 'Failed: '+e.message;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+/* ---------------- dashboard ---------------- */
+function initMap(){
+  map = L.map('map', {scrollWheelZoom:false}).setView([26.1862, 91.6959], 16);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  const mapEl = document.getElementById('map');
+  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  if(isTouch){
+    map.dragging.disable(); map.touchZoom.disable(); map.doubleClickZoom.disable();
+    const hint = document.createElement('div'); hint.className='map-hint'; hint.textContent='Tap to interact with map';
+    mapEl.appendChild(hint);
+    mapEl.addEventListener('touchstart', function enable(){
+      map.dragging.enable(); map.touchZoom.enable(); map.doubleClickZoom.enable();
+      hint.remove(); mapEl.removeEventListener('touchstart', enable);
+    }, {once:true, passive:true});
+  }
+  map.on('click', ()=> map.scrollWheelZoom.enable());
+  document.addEventListener('click', e=>{ if(!mapEl.contains(e.target)) map.scrollWheelZoom.disable(); });
+}
+
+async function refreshDashboard(){
+  const [points, summary] = await Promise.all([
+    fetch(`${API}/points`).then(r=>r.json()),
+    fetch(`${API}/routes/summary`).then(r=>r.json()),
+  ]);
+  let pts = points;
+  if(filters.route) pts = pts.filter(p=>p.route===filters.route);
+  if(filters.level) pts = pts.filter(p=>{ const lvl=p.rule_risk>=7?'high':p.rule_risk>=4?'medium':'low'; return lvl===filters.level; });
+
+  const routesSet = new Set(pts.map(p=>p.route));
+  const avg = pts.length? (pts.reduce((a,p)=>a+p.rule_risk,0)/pts.length).toFixed(1) : '–';
+  const high = pts.filter(p=>p.rule_risk>=7).length;
+  const netAvg = pts.length? (pts.reduce((a,p)=>a+(p.network_risk||0),0)/pts.length).toFixed(1) : '–';
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><b>${pts.length}</b><span>Points surveyed</span></div>
+    <div class="stat"><b>${routesSet.size}</b><span>Routes</span></div>
+    <div class="stat"><b>${avg}</b><span>Avg rule-based risk</span></div>
+    <div class="stat" style="color:var(--red)"><b>${high}</b><span>High risk</span></div>
+    <div class="stat" style="color:var(--accent2)"><b>${netAvg}</b><span>Avg network risk</span></div>`;
+
+  markers.forEach(m=>map.removeLayer(m)); markers=[];
+  pts.forEach(p=>{
+    const m = L.circleMarker([p.lat,p.lon],{radius:8,color:riskColor(p.rule_risk),fillColor:riskColor(p.rule_risk),fillOpacity:.85,weight:1});
+    m.bindPopup(`<b>${p.segment}</b><br>Route: ${p.route}<br>Rule score: ${p.rule_risk}${p.ml_risk!=null?`<br>ML score: ${p.ml_risk}`:''}${p.network_risk!=null?`<br>Network risk: ${p.network_risk}`:''}`);
+    m.addTo(map); markers.push(m);
+  });
+
+ document.getElementById('ranked-body').innerHTML = pts.slice().sort((a,b)=>b.rule_risk-a.rule_risk).map((p,i)=>`
+  <tr><td>${i+1}</td><td><span class="dot ${riskClass(p.rule_risk)}"></span>${p.segment}</td><td>${p.route}</td>
+  <td>${p.rule_risk}</td><td>${p.ml_risk ?? '<span class="muted">–</span>'}</td>
+  <td>${p.network_risk ?? '<span class="muted">–</span>'}</td>
+  <td><span class="badge ${p.verified?'best':''}">${p.verified?'Human-verified':'AI-classified'}</span></td>
+  <td><button class="btn secondary" style="padding:4px 10px;margin:0;font-size:.75rem" onclick="deletePoint(${p.id})">Remove</button></td></tr>`).join('');
+
+  const byRoute = {};
+  pts.forEach(p=>{ (byRoute[p.route]=byRoute[p.route]||[]).push(p); });
+  document.getElementById('route-groups').innerHTML = Object.entries(byRoute).map(([route,list])=>{
+    const s = summary.find(x=>x.route===route);
+    const avg = s ? s.rule_avg : (list.reduce((a,p)=>a+p.rule_risk,0)/list.length).toFixed(1);
+    const rows = list.slice().sort((a,b)=>b.rule_risk-a.rule_risk).map(p=>`<tr><td><span class="dot ${riskClass(p.rule_risk)}"></span>${p.segment}</td><td>${p.rule_risk}</td><td>${p.ml_risk ?? '–'}</td><td>${p.network_risk ?? '–'}</td></tr>`).join('');
+    return `<div class="route-group"><div class="route-head" onclick="this.nextElementSibling.classList.toggle('open')">
+      <span>${route} <span class="muted">(${list.length} pts)</span></span><span style="font-weight:700;color:${riskColor(avg)}">${avg}</span></div>
+      <div class="route-body"><table><thead><tr><th>Point</th><th>Rule</th><th>ML</th><th>Network</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }).join('') || '<p class="muted">No points match the current filters.</p>';
+}
+async function deletePoint(id){
+  if(!confirm('Remove this point? This cannot be undone.')) return;
+  try{
+    const res = await fetch(`${API}/points/${id}`, {method:'DELETE'});
+    if(!res.ok) throw new Error(await res.text());
+    toast('Point removed and models retrained.');
+    refreshDashboard();
+  }catch(e){
+    toast('Failed to remove point: '+e.message, false);
+  }
+}
+/* ---------------- compare ---------------- */
+async function submitForm(){
+  const tags = Array.from(document.querySelectorAll('.chip.on')).map(c=>c.dataset.tag);
+  const loc = document.getElementById('form-loc').value.trim();
+  const msg = document.getElementById('form-msg');
+  if(!loc){ msg.style.color='var(--red)'; msg.textContent='Enter a location.'; return; }
+  const res = await fetch(`${API}/form`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({location_text:loc, tags})});
+  const data = await res.json();
+  msg.style.color='var(--green)';
+  msg.textContent = data.matched_route ? `Matched to ${data.matched_route}, form risk ${data.form_risk}.` : `No route matched "${loc}" — add it to the keyword map, or standardize form locations.`;
+  document.getElementById('form-loc').value='';
+  document.querySelectorAll('.chip.on').forEach(c=>c.classList.remove('on'));
+  refreshCompare();
+}
+
+function renderModelTable(models){
+  return models.length ? models.map(m=>`
+    <tr><td>${m.model_name.replace('_',' ')}</td><td>${m.mae}</td><td>${m.r2}</td><td>${m.n_samples}${m.insufficient_data?' <span class="muted">(too few for held-out validation)</span>':''}</td>
+    <td>${m.is_best? '<span class="badge best">best</span>':''}</td></tr>`).join('')
+    : `<tr><td colspan="5" class="muted">Not enough data to train yet.</td></tr>`;
+}
+
+function renderShapBars(shap, cls){
+  const vals = Object.values(shap);
+  if(!vals.length) return '<p class="muted">No trained model yet.</p>';
+  const maxShap = Math.max(...vals, 0.001);
+  return Object.entries(shap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
+    <div class="bar-row"><span style="width:130px">${k}</span><div class="bar-track"><div class="bar-fill ${cls||''}" style="width:${(v/maxShap*100).toFixed(0)}%"></div></div><span>${v}</span></div>`).join('');
+}
+async function submitFormBulk(){
+  const fileInput = document.getElementById('form-bulk-file');
+  const msg = document.getElementById('form-bulk-msg');
+  if(!fileInput.files[0]){ msg.style.color='var(--red)'; msg.textContent='Choose an Excel file first.'; return; }
+
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  msg.style.color='var(--muted)'; msg.textContent='Importing…';
+
+  try{
+    const res = await fetch(`${API}/form/bulk`, {method:'POST', body: fd});
+    if(!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    msg.style.color='var(--green)';
+    msg.textContent = `Imported ${data.added} response(s).`;
+    fileInput.value = '';
+    refreshCompare();
+  }catch(e){
+    msg.style.color='var(--red)'; msg.textContent = 'Failed: '+e.message;
+  }
+}
+async function refreshCompare(){
+  const [models, shap, networkModels, networkShap, summary] = await Promise.all([
+    fetch(`${API}/models/compare`).then(r=>r.json()),
+    fetch(`${API}/shap/summary`).then(r=>r.json()),
+    fetch(`${API}/models/compare/network`).then(r=>r.json()),
+    fetch(`${API}/shap/network/summary`).then(r=>r.json()),
+    fetch(`${API}/routes/summary`).then(r=>r.json()),
+  ]);
+
+  document.getElementById('models-body').innerHTML = models.length ? renderModelTable(models)
+    : `<tr><td colspan="5" class="muted">Not enough matched photo+form data to train yet — add points and form responses above.</td></tr>`;
+  document.getElementById('shap-bars').innerHTML = renderShapBars(shap);
+
+  document.getElementById('network-models-body').innerHTML = renderModelTable(networkModels);
+  document.getElementById('network-shap-bars').innerHTML = renderShapBars(networkShap, 'net');
+
+  const forms = await fetch(`${API}/form`).then(r=>r.json());
+  const formAvgByRoute = {};
+  forms.forEach(f=>{ if(f.matched_route){ (formAvgByRoute[f.matched_route]=formAvgByRoute[f.matched_route]||[]).push(f.form_risk); }});
+  document.getElementById('compare-body').innerHTML = summary.map(s=>{
+    const fv = formAvgByRoute[s.route];
+    const favg = fv ? (fv.reduce((a,b)=>a+b,0)/fv.length).toFixed(1) : null;
+    return `<tr><td>${s.route}</td><td>${s.rule_avg}</td><td>${s.ml_avg ?? '<span class="muted">–</span>'}</td><td>${favg ?? '<span class="muted">no matches</span>'}</td><td>${s.network_avg ?? '<span class="muted">–</span>'}</td><td>${s.network_ml_avg ?? '<span class="muted">–</span>'}</td></tr>`;
+  }).join('');
+}
+
+boot();
+</script>
+</body>
+</html>

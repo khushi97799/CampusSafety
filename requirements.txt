@@ -1,0 +1,16 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+scikit-learn==1.5.1
+shap==0.46.0
+numpy==1.26.4
+pydantic==2.8.2
+python-multipart==0.0.9
+Pillow==10.4.0
+groq==1.7.0
+pandas==2.2.2
+openpyxl==3.1.5
+httpx==0.28.1
+# Optional: only used by the local fallback path (when GROQ_API_KEY isn't set,
+# or a Groq call fails) to add a best-effort person-count for foot traffic.
+# Safe to skip — the app runs fine without it.
+# opencv-python-headless==4.10.0.84
